@@ -1,79 +1,34 @@
 # Architecture and ownership
 
-One binary crate; no Cargo workspace, backend or application framework. All source paths below are relative to the repository root.
+One Rust binary crate; no server, application framework, universal connector, or product event bus. GPUI Kit is pinned to 0.7.1; Rust to 1.97.0.
 
-## Production tree
+## Production owners
 
-```text
-src/
-  main.rs                    dependency construction, Kit/assets/window initialization
-  runtime.rs                 Tokio/GPUI execution substitution and cancel-on-drop Work
-  theme.rs                   product theme policy
-  catalog/
-    mod.rs                   non-rendering feature owner; intentions, state reads, opaque results
-    state.rs                 pure loading/selection/generation transitions
-  connectors/
-    mod.rs                   provider declarations
-    catalog/
-      mod.rs                 Client, capability-specific Adapter seam and exports
-      types.rs               record data used by callers
-      error.rs               typed failures
-      memory.rs              safe deterministic adapter
-      http.rs                loopback transport, private collection DTO, validation
-  storage/
-    mod.rs                   serialized preference writer and explicit replies
-    preferences.rs           nonsensitive format, namespace, path and file mechanics
-  views/
-    mod.rs
-    app_shell.rs             stable window host; one opaque update consumer
-    catalog/
-      mod.rs                 screen construction/composition
-      record_list.rs         record selection rendering
-      record_detail.rs       details, loading/empty/error/storage feedback
-      search.rs              local form edits/focus, search/reload intentions
-  test_support/              test-only controlled catalog and loopback HTTP fixtures
-```
+- `src/main.rs`: opens the canonical kernel-locked profile, constructs the native window and dependencies. Internal retained-process modes exit before GUI/profile initialization.
+- `src/views/app_shell.rs`: retains `Entity<Workspace>`, consumes opaque worker updates, polls independently of selection, and coordinates confirmed window closure. Dropping/recreating the conversation view does not own execution.
+- `src/workspace/mod.rs`: project/thread navigation, metadata policy, ordered blocking work, thread creation reservations, Git/image intentions, transition attention, mute and exit workflow. It retains each thread owner and the profile until accepted storage work drains.
+- `src/threads/mod.rs`: ordinary Pi thread workflow, attempts, prompt admission/acknowledgement, draft/image state, explicit delivery mode, queues, standard dialogs, model/thinking intentions, compaction, history reconciliation and structured child observations. Prompt acceptance and `agent_end` are not settlement; only `agent_settled` ends a generation.
+- `src/views/workspace.rs` and its owner-private `workspace/` presentation modules: compact navigation, conversation/activity viewport, composer/queues, bounded attention/exit surfaces, on-demand session forms, thread-action menu and status presentation. Kit controls submit owner intentions; views own only local panels/scrolling and do not launch processes or access storage. `src/theme.rs` installs the coordinated dark palette and density policy.
+- `src/worktrees/mod.rs`: explicit committed-worktree policy. No dirty copying, integration or automatic cleanup.
 
-Suites live in owner-local tests/ directories. See [EXTENDING.md](EXTENDING.md) for the complete placement table and registration recipes.
+## Mechanics
 
-## Interfaces and dependency direction
+`src/connectors/pi/` owns bounded JSONL pipes, continuously drained diagnostics, correlated command IDs, write/read/ack deadlines and sticky terminal faults. A transport error can mean an ambiguous mutation; nothing is retried or replayed. Frame, mailbox and write budgets are explicit. `src/connectors/git/` owns safe Git invocation, worktree mechanics and porcelain decoding. Checkout filters/hooks/fsmonitor are not executed by untrusted GUI operations. `src/connectors/notification.rs` owns only its bounded `paplay` child; failure is surfaced rather than claimed audible.
 
-```text
-main -> execution + connector + storage + shell constructor
-shell -> retains Entity<Catalog>, Entity<CatalogView>, delivery Task
-views -> Entity<Catalog> intention/read interface + private children
-Catalog -> pure State + typed Client + Execution + optional Persistence
-connectors/storage/runtime -X-> views or feature owners
-pure State -X-> GPUI or I/O execution
-```
+`src/connectors/process_scope.rs` executes the retained Node launcher with Linux `PR_SET_CHILD_SUBREAPER`. After Pi closure, orphaned local descendants—including daemonized ordinary Bash jobs—remain children of the dedicated per-thread launcher. A native pidfd helper checks actual PPID and start identity before signaling. It never searches process names or signals another thread's process group. Native process closure is independent of the package's whole-run writer-close proof.
 
-The example uses a non-rendering `Entity<Catalog>`. GPUI owns entity storage, while the retained shell governs logical workflow lifetime. Views observe that entity with independent subscriptions; every intention/completion updates the owner then calls `cx.notify()`. State is readable but transition methods stay private to catalog ownership. A view never directly calls a connector or mutates State.
+`src/storage/` owns atomic metadata writes, stable profile locking, authoritative passive Pi history, bounded image reads and persisted process-identity inspection. Metadata contains project/thread association, directory, session reference, archive/interrupted/trust flags and mute, never a transcript or credentials. Storage validates private namespace components before creating descendants; metadata save/read budgets agree. Draft-local image revisions reject cancelled or old receipt callbacks. Unknown external saved history is an explicitly read-only snapshot, never an adopted execution owner. Invalid metadata refuses startup rather than overwriting it. Legacy/partial process proofs do not establish descendant cleanup.
 
-The catalog-specific Adapter has memory and HTTP implementations plus controlled test outcomes. This is a real substitution seam for one capability, not a trait that all providers must implement. Transport and wire details remain private. Feature-specific user feedback belongs to the feature; typed failure strings in this small example are its deliberately simple presentation policy.
+## Retained runtime
 
-## Lifetimes and delivery
+`scripts/pi-runtime/launch.mjs` performs offline resource discovery/build verification and explicit admission before extension startup. It starts ordinary Pi RPC through `guardian.mjs`; it does not implement another agent/tool runtime. `catalog.mjs` classifies reviewed Q+A replacement, guard, tool-search, supported subagents and HTTP web configurations. Unknown owners, MCP, llama.cpp, codemode model helpers and unsupported workflows refuse admission rather than being silently removed. Ordinary model/auth settings remain Pi's responsibility.
 
-1. Main loads small preferences before entering the GUI loop and constructs the ordered writer and connector. It initializes Kit/assets/theme and opens a window.
-2. The shell constructs one catalog owner, begins its initial read and constructs a screen using the existing entity.
-3. Search submits a query to the owner. It increments the read generation, replaces/cancels prior work and starts the typed connector operation. Completed outcomes are wrapped in opaque updates.
-4. Exactly one shell task receives those updates, calls `Catalog::apply` and notifies the entity. Result receivers are not broadcast subscriptions.
-5. State applies only the current generation while loading. Already-queued outcomes cannot overwrite a newer request; cancellation alone is not a correctness gate.
-6. Views re-render on entity observation. Recreating a screen does not restart the owner, initial load or update consumer. Query submission belongs to the owner; unsubmitted text, focus and input subscriptions belong to the search view.
-7. The shell retains its delivery Task. Dropping the owner drops cancel-on-drop work handles. Drop/recreation tests use this same production code, not a test-only lifecycle.
+`extensions/pi-gui-guard.ts` uses public required-child-extension and launch-contract APIs, inherited into nested SDK children. It refuses unaudited child ownership and per-tool preflight/override bypasses; projects versioned bounded public observations without private routing/control metadata. Capability ping and command discovery gate native admission. Pi executes extension commands before input hooks: native thread command-provenance policy therefore refuses unknown/unaudited slash workflows before RPC dispatch, rather than relying on an ineffective input hook. Snapshot timestamps/caps/omissions remain visible; observations are not completion proof.
 
-The root is window-scoped, not process-global. If product workflows must outlive windows or be shared across windows, introduce a retained non-rendering application host with explicit shutdown/task semantics. Do not introduce it just to rename the shell.
+Guardian closure clears queues and aborts first, stops private-scope package runners, closes Pi, reconciles again, then waits for retained Linux descendant closure. Active scope admission additionally requires a healthy opaque transport lease retained by the workspace worker, not merely the same live frontend PID. Stop proceeds even when phase journaling fails, reports uncertainty and attempts only owned descendant closure after abnormal guardian exit. Durable identities/proofs preserve uncertainty after owner loss, unsupported whole-run proof, interrupted writers, or stop deadlines. A new GUI may read history passively but refuses new writable admission while retained ownership is unproved.
 
-## Runtime, storage and transport policy
+Local process closure does not roll back external HTTP/provider side effects. This is not a security sandbox for arbitrary shell programs. Remote/background product execution, Durable coordinator, branching, terminal attachment and arbitrary custom TUI remain outside milestone 1.
 
-- Runtime supplies executor/time substitution only. Controlled tests use GPUI's scheduler/clock; real I/O uses a small lazy Tokio runtime.
-- Feature reads have a six-second deadline; the HTTP adapter has a five-second transport deadline. No implicit retry, write replay, auth refresh or streaming exists.
-- HTTP example configuration binds an immutable literal loopback /records endpoint, uses no proxy/redirect, validates records and reports typed/redacted failures. Production provider configuration needs its own rules.
-- An ordered worker serializes config writes. Submission is nonblocking; unavailable/full queue and write failures return explicit outcomes. Canceling a UI waiter does not undo a queued write. Newer save revisions gate feedback.
-- Preferences contain only the submitted query. Independent instances must use distinct profiles; a single-process ordered worker is not a multi-process locking protocol. File replacement uses a sibling temporary file then rename, not a crash-durability guarantee.
-- The base has no credentials, sessions, streams, server/protocol crates or persistent product cache.
+## Tests and changes
 
-## Tests
-
-In-crate suites live in their owner’s tests/<subject>.rs directory and are declared by that production module under cfg(test) with explicit path where needed. They retain private access; normal visibility is not widened for tests. Helpers are local to one suite, under tests/support for a feature, or src/test_support for cross-feature reuse.
-
-Feature tests cross production coordination/state transitions with controlled requests/time. Connector tests additionally exercise owned loopback HTTP serialization/decoding. View journeys use actual Kit controls, semantic IDs and a Kit Root through the same app_shell::open constructor. Storage uses temporary paths and no user files/providers.
+All Rust suites are owner-local `tests/<subject>.rs`, declared by their production modules. Production Node integration lives under `scripts/pi-runtime/tests/integration/`; compatibility fixtures remain separate under `scripts/pi-compat/`. See `VERIFY.md` and `PI-GUI-MILESTONE-1.md` for actual evidence and residual native limitations.

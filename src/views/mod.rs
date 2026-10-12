@@ -1,4 +1,6 @@
 pub(crate) mod app_shell;
-mod catalog;
-#[cfg(test)]
-mod tests;
+mod workspace;
+
+pub(crate) fn init(cx: &mut gpui_kit::App) {
+    workspace::init(cx);
+}

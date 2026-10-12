@@ -1,0 +1,14 @@
+{
+  "@earendil-works/pi-coding-agent": {
+    "directory": "dist",
+    "sha256": "6405d845d0aef3f2c8ed6b57e648162d51263eea7cfd6bfd20af2c5156cde77d"
+  },
+  "pi-subagents": {
+    "directory": "src",
+    "sha256": "04c495f1cbcff141451752911bfb41b788a6b4c2784d858b72f8b50bd65da31b"
+  },
+  "pi-web-access": {
+    "directory": "dist",
+    "sha256": "84d3cfa0985876970a41bf6be6c132a911aab24248ffe321f7c301e9a7dc0f83"
+  }
+}

@@ -9,7 +9,9 @@ if [[ ${1:-} == --help || ${1:-} == -h ]]; then
         'Install Watchexec: cargo install watchexec-cli --locked' \
         'Builds on startup and source changes; restarts only after success.' \
         'Uses .env.dev-config and target; Ctrl+C stops owned processes.' \
-        'Default data is in-memory; network is explicit opt-in. No keyring is used.'
+        'Pi configuration is ordinary; isolate PI_CODING_AGENT_DIR for safe trials.' \
+        'Restart/Ctrl+C stops the frontend only; retained owners reconcile shutdown.' \
+        'Use in-app confirmed exit for orderly shutdown before stopping the watcher.'
     exit 0
 fi
 if (( $# != 0 )); then
@@ -57,11 +59,25 @@ stop_process() {
     wait "$pid" 2>/dev/null || true
 }
 
+# Pi launchers inherit the frontend group but must survive frontend loss to
+# reconcile owned descendants. Never apply the watcher/build group policy here.
+stop_client() {
+    local pid=${1:-}
+    [[ -n $pid ]] || return 0
+    kill -TERM -- "$pid" 2>/dev/null || true
+    for (( attempt = 0; attempt < 30; attempt++ )); do
+        kill -0 -- "$pid" 2>/dev/null || break
+        sleep 0.1
+    done
+    kill -KILL -- "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
     trap '' INT TERM HUP
     stop_process "$watcher_pid"
     stop_process "$build_pid"
-    stop_process "$client_pid"
+    stop_client "$client_pid"
     rm -rf -- "$state_dir"
 }
 trap cleanup EXIT
@@ -109,7 +125,7 @@ while true; do
             printf 'Expected native debug binary at %s; check Cargo target configuration.\n' "$binary" >&2
             continue
         fi
-        stop_process "$client_pid"
+        stop_client "$client_pid"
         printf 'Starting rebuilt client...\n'
         setsid "$binary" 3>&- </dev/null &
         client_pid=$!

@@ -1,6 +1,6 @@
 # Pi GUI plan
 
-Status: user-approved planning baseline from the design interview. Milestone 0 controlled compatibility proof is complete; exact supported/unsupported boundaries are recorded in PI-GUI-COMPATIBILITY.md. Architecture details remain implementation recommendations; GUI/coordinator implementation has not started.
+Status: user-approved planning baseline from the design interview. Milestone 0 controlled compatibility proof is complete; exact supported/unsupported boundaries are recorded in PI-GUI-COMPATIBILITY.md. Milestone 1 implementation and final code review are complete for the qualified admitted Linux baseline; evidence and remaining limits are in PI-GUI-MILESTONE-1.md, with user acceptance pending PI-GUI-USER-REVIEW.md. Coordinator implementation has not started. Candidate architecture below records the original recommendations; current ownership is in ARCHITECTURE.md.
 
 ## Agreed product decisions
 
